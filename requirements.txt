@@ -2,3 +2,4 @@ torch==2.8.0
 numpy==1.26.4
 pandas==2.3.1
 scipy==1.13.0
+simpleitk==2.5.6
