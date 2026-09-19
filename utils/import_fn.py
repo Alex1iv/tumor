@@ -176,8 +176,8 @@ def find_ct_files(data_dir):
         ct_files.append({
             "series_uid": series_uid,
             "mhd_path": mhd_path,
-            "raw_path": raw_path}
-        )
+            "raw_path": raw_path
+        })
 
     return ct_files
 
@@ -225,8 +225,8 @@ class CTVolume:
                 f"Expected .raw file not found: {self.raw_path}"
             )
 
-        # Read CT
-        self.image = sitk.ReadImage(str(self.mhd_path))
+        # Read CT using SimpleITK package
+        self.image = sitk.ReadImage(str(self.mhd_path)) 
 
         # SimpleITK returns a NumPy array as: (Z, Y, X) which we call: (I, R, C)
         self.hu_array = sitk.GetArrayFromImage(
@@ -282,74 +282,285 @@ class CTVolume:
         return irc
 
     
-    # Convert all candidates belonging to this CT
-    def add_candidate_coordinates(
+    # # Convert all candidates belonging to this CT
+    # def add_candidate_coordinates(self, candidates: pd.DataFrame) -> pd.DataFrame:
+
+    #     result = candidates.copy()
+    #     xyz = result[["coordX", "coordY", "coordZ"]].to_numpy(dtype=np.float64)
+
+    #     irc = np.array(
+    #         [self.xyz_to_irc(point) for point in xyz],
+    #         dtype=np.float64)
+
+    #     result[["centerI", "centerR", "centerC"]] = irc
+
+    #     return result
+    
+    def get_raw_candidate(self, center_xyz:np.ndarray, width_irc:tuple):
+        """Gets physical candidate center, calculate nodule boundaries 
+        and extract a 3D CT patch centered at a physical XYZ coordinate.
+
+        Args:
+            center_xyz (_ndarray_): Candidate center in physical LPS coordinates (mm)
+            width_irc (tuple): Patch size in NumPy array coordinates: (I, R, C).
+
+        Returns:
+            ct_chunk (np.ndarray):  CT patch with shape approximately width_irc.
+
+            center_irc (np.ndarray)
+                Continuous candidate center in (I, R, C).
+        """  
+        width_irc = tuple(int(x) for x in width_irc)
+
+        if len(width_irc) != 3:
+            raise ValueError(
+                f"width_irc must contain 3 values, got {width_irc}"
+            )
+
+        if any(x <= 0 for x in width_irc):
+            raise ValueError(
+                f"width_irc must contain positive values, got {width_irc}"
+            )
+
+      
+        center_irc = self.xyz_to_irc(center_xyz)
+
+        slice_list = []
+
+        for axis, center_val in enumerate(center_irc):
+
+            start_ndx = int(round(  center_val - width_irc[axis] / 2 ))
+
+            end_ndx = start_ndx + width_irc[axis]
+
+            # Boundary handling
+            if start_ndx < 0:
+                start_ndx = 0
+                end_ndx = width_irc[axis]
+
+            if end_ndx > self.hu_array.shape[axis]:
+                end_ndx = self.hu_array.shape[axis]
+                start_ndx =  self.hu_array.shape[axis] - width_irc[axis]
+                
+            slice_list.append( slice(start_ndx, end_ndx ) )
+
+        ct_chunk = self.hu_array[tuple(slice_list)]
+
+        return ct_chunk, center_irc
+
+
+
+import logging
+import torch
+from torch.utils.data import Dataset
+
+log = logging.getLogger(__name__)
+
+
+class LunaDataset(Dataset):
+
+    def __init__(
         self,
-        candidates: pd.DataFrame,
-    ) -> pd.DataFrame:
+        candidates_df: pd.DataFrame,
+        data_dir: str = "../data/raw",
+        width_irc=(32, 48, 48),
+        val_stride=0,
+        isValSet_bool=None,
+        series_uid=None,
+        normalize=True
+    ):
+        """
+        Parameters
+        ----------
+        candidates_df : pd.DataFrame
+            Augmented LUNA16 candidate dataframe.
 
-        result = candidates.copy()
-        xyz = result[["coordX", "coordY", "coordZ"]].to_numpy(dtype=np.float64)
+        data_dir : str
+            Directory containing subset*/<series_uid>.mhd/.raw.
 
-        irc = np.array(
-            [self.xyz_to_irc(point) for point in xyz],
-            dtype=np.float64)
+        width_irc : tuple
+            Patch dimensions in (I, R, C).
 
-        result[["centerI", "centerR", "centerC"]] = irc
+        val_stride : int
+            Every val_stride-th sample is used for validation.
 
-        return result
+        isValSet_bool : bool or None
+            True  -> validation samples
+            False -> training samples
+            None  -> do not split
 
-# class Ct:
-#     def __init__(self, series_uid):
-#         mhd_path = glob.glob(
-#             'data-unversioned/part2/luna/subset*/{}.mhd'.format(series_uid)
-#         )[0]
+        series_uid : str or None
+            If specified, use only candidates from this CT series.
 
-#         ct_mhd = sitk.ReadImage(mhd_path)
-#         ct_a = np.array(sitk.GetArrayFromImage(ct_mhd), dtype=np.float32)
+        normalize : bool
+            If True, map HU values from [-1000, 1000]
+            to approximately [-1, 1].
+        """
 
-#         # CTs are natively expressed in https://en.wikipedia.org/wiki/Hounsfield_scale
-#         # HU are scaled oddly, with 0 g/cc (air, approximately) being -1000 and 1 g/cc (water) being 0.
-#         # The lower bound gets rid of negative density stuff used to indicate out-of-FOV
-#         # The upper bound nukes any weird hotspots and clamps bone down
-#         ct_a.clip(-1000, 1000, ct_a)
+        super().__init__()
 
-#         self.series_uid = series_uid
-#         self.hu_a = ct_a
+        self.data_dir = Path(data_dir)
+        self.width_irc = tuple(width_irc)
+        self.normalize = normalize
 
-#         self.origin_xyz = XyzTuple(*ct_mhd.GetOrigin())
-#         self.vxSize_xyz = XyzTuple(*ct_mhd.GetSpacing())
-#         self.direction_a = np.array(ct_mhd.GetDirection()).reshape(3, 3)
+        # Validate DataFrame
+        required_columns = {"series_uid", "coordX", "coordY", "coordZ", "class", "diameter_mm" }
 
-#     def getRawCandidate(self, center_xyz, width_irc):
-#         center_irc = xyz2irc(
-#             center_xyz,
-#             self.origin_xyz,
-#             self.vxSize_xyz,
-#             self.direction_a,
-#         )
+        missing = required_columns - set(candidates_df.columns)
 
-#         slice_list = []
-#         for axis, center_val in enumerate(center_irc):
-#             start_ndx = int(round(center_val - width_irc[axis]/2))
-#             end_ndx = int(start_ndx + width_irc[axis])
+        if missing:
+            raise ValueError(
+                f"candidates_df is missing columns: {missing}"
+            )
 
-#             assert center_val >= 0 and center_val < self.hu_a.shape[axis], repr([self.series_uid, center_xyz, self.origin_xyz, self.vxSize_xyz, center_irc, axis])
 
-#             if start_ndx < 0:
-#                 # log.warning("Crop outside of CT array: {} {}, center:{} shape:{} width:{}".format(
-#                 #     self.series_uid, center_xyz, center_irc, self.hu_a.shape, width_irc))
-#                 start_ndx = 0
-#                 end_ndx = int(width_irc[axis])
+        # Keep only required information
+        self.candidates_df = candidates_df[["series_uid", "coordX", "coordY", "coordZ", "class", "diameter_mm"]].copy()
 
-#             if end_ndx > self.hu_a.shape[axis]:
-#                 # log.warning("Crop outside of CT array: {} {}, center:{} shape:{} width:{}".format(
-#                 #     self.series_uid, center_xyz, center_irc, self.hu_a.shape, width_irc))
-#                 end_ndx = self.hu_a.shape[axis]
-#                 start_ndx = int(self.hu_a.shape[axis] - width_irc[axis])
 
-#             slice_list.append(slice(start_ndx, end_ndx))
+        # Optional series filtering
+        if series_uid is not None:
+            self.candidates_df = self.candidates_df[
+                self.candidates_df["series_uid"] == series_uid
+            ].copy()
 
-#         ct_chunk = self.hu_a[tuple(slice_list)]
 
-#         return ct_chunk, center_irc
+        # Train / validation split
+        if isValSet_bool is not None:
+
+            if val_stride <= 0:
+                raise ValueError(
+                    "val_stride must be > 0 when "
+                    "isValSet_bool is specified."
+                )
+
+            if isValSet_bool:
+                self.candidates_df = (
+                    self.candidates_df.iloc[::val_stride]
+                )
+            else:
+                self.candidates_df = (
+                    self.candidates_df.drop(
+                        self.candidates_df.index[::val_stride]
+                    )
+                )
+
+        if len(self.candidates_df) == 0:
+            raise ValueError(
+                "LunaDataset contains no samples."
+            )
+
+
+        # Reset index
+        self.candidates_df = (
+            self.candidates_df.reset_index(drop=True)
+        )
+
+
+        # One-CT RAM cache
+        self._cached_series_uid = None
+        self._cached_ct = None
+
+        log.info(
+            "%r: %d samples (%s)",
+            self,
+            len(self),
+            (
+                "validation"
+                if isValSet_bool
+                else "training"
+                if isValSet_bool is False
+                else "all"
+            ),
+        )
+
+    
+    # Dataset length
+    def __len__(self):
+        return len(self.candidates_df)
+
+    
+    # CT loading
+    def _get_ct(self, series_uid):
+
+        if self._cached_series_uid != series_uid:
+
+            self._cached_ct = CTVolume(
+                series_uid=series_uid,
+                data_dir=self.data_dir,
+            )
+
+            self._cached_series_uid = series_uid
+
+        return self._cached_ct
+
+    
+    # HU normalization
+    def _normalize_hu(self, ct_chunk):
+
+        if not self.normalize:
+            return ct_chunk
+
+        # HU was clipped to [-1000, 1000].
+        #
+        # Map:
+        #
+        # -1000 -> -1
+        #     0 ->  0
+        #  1000 -> +1
+        #
+        return ct_chunk / 1000.0
+
+    
+    # Get one sample
+    def __getitem__(self, ndx):
+
+        row = self.candidates_df.iloc[ndx]
+
+        series_uid = row["series_uid"]
+        center_xyz = np.array([row["coordX"], row["coordY"], row["coordZ"]], dtype=np.float64)
+
+
+        # Load CT
+        ct = self._get_ct(series_uid)
+
+
+        # Convert XYZ → IRC
+        #center_irc = ct.xyz_to_irc(center_xyz)
+
+
+        # Extract 3-D patch
+        candidate_a, center_irc = ct.get_raw_candidate(center_xyz, self.width_irc)
+            
+
+
+        # Normalize HU
+        candidate_a = self._normalize_hu(candidate_a)
+
+
+        # NumPy → Torch
+        candidate_t = torch.from_numpy(candidate_a).to(torch.float32)
+
+        # Add channel dimension:
+        #
+        # (I, R, C)
+        #       ↓
+        # (1, I, R, C)
+        #
+        candidate_t = candidate_t.unsqueeze(0)
+
+        # Classification target
+        label = int(row["class"])
+
+        label_t = torch.tensor(label, dtype=torch.long)
+
+
+        # Center coordinates
+        center_irc_t = torch.tensor(center_irc, dtype=torch.float32)
+
+        return (
+            candidate_t,
+            label_t,
+            series_uid,
+            center_irc_t,
+        )
