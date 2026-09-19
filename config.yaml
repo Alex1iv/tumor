@@ -2,6 +2,7 @@ PATH_MODELS: "./models/"
 PATH_DATA: "./data/"
 PATH_FIGURES: "./figures/"
 LOG_DIR: "./logs/"
+random_seed: 42
 
 logging: true
 verbose: true
