@@ -313,14 +313,10 @@ class CTVolume:
         width_irc = tuple(int(x) for x in width_irc)
 
         if len(width_irc) != 3:
-            raise ValueError(
-                f"width_irc must contain 3 values, got {width_irc}"
-            )
+            raise ValueError(f"width_irc must contain 3 values, got {width_irc}")
 
         if any(x <= 0 for x in width_irc):
-            raise ValueError(
-                f"width_irc must contain positive values, got {width_irc}"
-            )
+            raise ValueError(f"width_irc must contain positive values, got {width_irc}")
 
       
         center_irc = self.xyz_to_irc(center_xyz)
@@ -364,8 +360,6 @@ class LunaDataset(Dataset):
         candidates_df: pd.DataFrame,
         data_dir: str = "../data/raw",
         width_irc=(32, 48, 48),
-        val_stride=0,
-        isValSet_bool=None,
         series_uid=None,
         normalize=True
     ):
@@ -380,14 +374,6 @@ class LunaDataset(Dataset):
 
         width_irc : tuple
             Patch dimensions in (I, R, C).
-
-        val_stride : int
-            Every val_stride-th sample is used for validation.
-
-        isValSet_bool : bool or None
-            True  -> validation samples
-            False -> training samples
-            None  -> do not split
 
         series_uid : str or None
             If specified, use only candidates from this CT series.
@@ -409,9 +395,7 @@ class LunaDataset(Dataset):
         missing = required_columns - set(candidates_df.columns)
 
         if missing:
-            raise ValueError(
-                f"candidates_df is missing columns: {missing}"
-            )
+            raise ValueError(f"candidates_df is missing columns: {missing}")
 
 
         # Keep only required information
@@ -425,55 +409,15 @@ class LunaDataset(Dataset):
             ].copy()
 
 
-        # Train / validation split
-        if isValSet_bool is not None:
-
-            if val_stride <= 0:
-                raise ValueError(
-                    "val_stride must be > 0 when "
-                    "isValSet_bool is specified."
-                )
-
-            if isValSet_bool:
-                self.candidates_df = (
-                    self.candidates_df.iloc[::val_stride]
-                )
-            else:
-                self.candidates_df = (
-                    self.candidates_df.drop(
-                        self.candidates_df.index[::val_stride]
-                    )
-                )
-
         if len(self.candidates_df) == 0:
-            raise ValueError(
-                "LunaDataset contains no samples."
-            )
-
+            raise ValueError("LunaDataset contains no samples.")
 
         # Reset index
-        self.candidates_df = (
-            self.candidates_df.reset_index(drop=True)
-        )
-
+        self.candidates_df = self.candidates_df.reset_index(drop=True)
 
         # One-CT RAM cache
         self._cached_series_uid = None
         self._cached_ct = None
-
-        log.info(
-            "%r: %d samples (%s)",
-            self,
-            len(self),
-            (
-                "validation"
-                if isValSet_bool
-                else "training"
-                if isValSet_bool is False
-                else "all"
-            ),
-        )
-
     
     # Dataset length
     def __len__(self):
@@ -487,7 +431,7 @@ class LunaDataset(Dataset):
 
             self._cached_ct = CTVolume(
                 series_uid=series_uid,
-                data_dir=self.data_dir,
+                data_dir=self.data_dir
             )
 
             self._cached_series_uid = series_uid
@@ -518,49 +462,34 @@ class LunaDataset(Dataset):
         row = self.candidates_df.iloc[ndx]
 
         series_uid = row["series_uid"]
-        center_xyz = np.array([row["coordX"], row["coordY"], row["coordZ"]], dtype=np.float64)
+        center_xyz = np.array(
+            [row["coordX"], row["coordY"], row["coordZ"]], dtype=np.float64
+        )
 
-
-        # Load CT
+        # Load CT volume
         ct = self._get_ct(series_uid)
 
-
-        # Convert XYZ → IRC
-        #center_irc = ct.xyz_to_irc(center_xyz)
-
-
-        # Extract 3-D patch
-        candidate_a, center_irc = ct.get_raw_candidate(center_xyz, self.width_irc)
+        # Extract 3-D CT patch
+        ct_patch, center_irc = ct.get_raw_candidate(center_xyz, self.width_irc)
             
-
-
         # Normalize HU
-        candidate_a = self._normalize_hu(candidate_a)
+        ct_patch = self._normalize_hu(ct_patch)
 
+        # Cast NumPy array to Torch
+        candidate_t = torch.from_numpy(ct_patch).to(torch.float32)
 
-        # NumPy → Torch
-        candidate_t = torch.from_numpy(candidate_a).to(torch.float32)
-
-        # Add channel dimension:
-        #
-        # (I, R, C)
-        #       ↓
-        # (1, I, R, C)
-        #
+        # Add channel dimension: (I, R, C) → (1, I, R, C)
         candidate_t = candidate_t.unsqueeze(0)
 
         # Classification target
-        label = int(row["class"])
+        label_t = torch.tensor(row["class"], dtype=torch.long)
 
-        label_t = torch.tensor(label, dtype=torch.long)
-
-
-        # Center coordinates
+        # Compute candidate center in voxel coordinates
         center_irc_t = torch.tensor(center_irc, dtype=torch.float32)
 
         return (
             candidate_t,
             label_t,
             series_uid,
-            center_irc_t,
+            center_irc_t
         )
