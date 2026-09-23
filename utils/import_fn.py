@@ -250,7 +250,8 @@ class CTVolume:
     # Coordinate conversion
     def xyz_to_irc(self, xyz):
         """
-        Convert physical LPS coordinates (X,Y,Z) in mm to NumPy array coordinates (I,R,C).
+        Convert physical LPS coordinates (X,Y,Z) in mm 
+        to NumPy array coordinates (I,R,C).
 
         Parameters
         ----------
@@ -266,9 +267,7 @@ class CTVolume:
         xyz = np.asarray(xyz, dtype=np.float64)
 
         if xyz.shape != (3,):
-            raise ValueError(
-                f"Expected xyz shape (3,), got {xyz.shape}"
-            )
+            raise ValueError(f"Expected xyz shape (3,), got {xyz.shape}")
 
         # SimpleITK's TransformPhysicalPointToContinuousIndex
         # returns index coordinates in (X,Y,Z) / (C,R,I) order.
@@ -277,24 +276,12 @@ class CTVolume:
                 tuple(xyz)), dtype=np.float64)
 
         # NumPy array order is (I,R,C), therefore reverse.
-        irc = continuous_index_xyz[::-1]
+        # .copy() is important because [::-1] otherwise creates an array with negative strides.
+        irc = continuous_index_xyz[::-1].copy()
 
         return irc
 
     
-    # # Convert all candidates belonging to this CT
-    # def add_candidate_coordinates(self, candidates: pd.DataFrame) -> pd.DataFrame:
-
-    #     result = candidates.copy()
-    #     xyz = result[["coordX", "coordY", "coordZ"]].to_numpy(dtype=np.float64)
-
-    #     irc = np.array(
-    #         [self.xyz_to_irc(point) for point in xyz],
-    #         dtype=np.float64)
-
-    #     result[["centerI", "centerR", "centerC"]] = irc
-
-    #     return result
     
     def get_raw_candidate(self, center_xyz:np.ndarray, width_irc:tuple):
         """Gets physical candidate center, calculate nodule boundaries 
