@@ -1,6 +1,15 @@
 import matplotlib.pyplot as plt
 import numpy as np
 from pathlib import Path
+import torch
+
+from sklearn.metrics import (
+    roc_curve,
+    roc_auc_score,
+    precision_recall_curve,
+    average_precision_score
+)
+
 
 # color setup
 HU_CLIM = (-1000.0, 300)
@@ -127,8 +136,8 @@ def show_candidate(
         
     )
 
-    ax[0, 0].axvline(center_c, linewidth=1)
-    ax[0, 0].axhline(center_r,  linewidth=1)
+    ax[0, 0].axvline(center_c, linewidth=1, color='r')
+    ax[0, 0].axhline(center_r,  linewidth=1, color='r')
     
     ax[0, 0].set_xlabel("C")
     ax[0, 0].set_ylabel("R")
@@ -140,8 +149,8 @@ def show_candidate(
         ct.hu_array[:, center_r, :], clim=HU_CLIM, cmap=cmap, aspect="auto"
     )
     
-    ax[0, 1].axvline(center_c, linewidth=1) # C - column
-    ax[0, 1].axhline(center_i, linewidth=1) # I - index
+    ax[0, 1].axvline(center_c, linewidth=1, color='r') # C - column
+    ax[0, 1].axhline(center_i, linewidth=1, color='r') # I - index
     
     ax[0, 1].set_xlabel("C")
     ax[0, 1].set_ylabel("I")
@@ -153,8 +162,8 @@ def show_candidate(
         ct.hu_array[:, :, center_c], 
         clim=HU_CLIM, cmap=cmap, aspect="auto"
     )
-    ax[0, 2].axvline(center_r, linewidth=1) # R
-    ax[0, 2].axhline(center_i,  linewidth=1) # I
+    ax[0, 2].axvline(center_r, linewidth=1, color='r') # R
+    ax[0, 2].axhline(center_i,  linewidth=1, color='r') # I
     
     ax[0, 2].set_xlabel("R")
     ax[0, 2].set_ylabel("I")
@@ -174,8 +183,8 @@ def show_candidate(
             clim=HU_CLIM,
             cmap=cmap
         )
-        ax[1, 0].axvline(patch_c, linewidth=1)
-        ax[1, 0].axhline(patch_r, linewidth=1)
+        ax[1, 0].axvline(patch_c, linewidth=1, color='r')
+        ax[1, 0].axhline(patch_r, linewidth=1, color='r')
 
         ax[1, 0].set_xlabel("C")
         ax[1, 0].set_ylabel("R")
@@ -189,8 +198,8 @@ def show_candidate(
             cmap=cmap,
             aspect="auto"
         )
-        ax[1, 1].axvline(patch_c, linewidth=1)
-        ax[1, 1].axhline(patch_i, linewidth=1)
+        ax[1, 1].axvline(patch_c, linewidth=1, color='r')
+        ax[1, 1].axhline(patch_i, linewidth=1, color='r')
 
         ax[1, 1].set_xlabel("C")
         ax[1, 1].set_ylabel("I")
@@ -205,8 +214,8 @@ def show_candidate(
             aspect="auto"
         )
         
-        ax[1, 2].axvline(patch_r, linewidth=1)
-        ax[1, 2].axhline(patch_i, linewidth=1)
+        ax[1, 2].axvline(patch_r, linewidth=1, color='r')
+        ax[1, 2].axhline(patch_i, linewidth=1, color='r')
 
         ax[1, 2].set_xlabel("R")
         ax[1, 2].set_ylabel("I")
@@ -220,3 +229,97 @@ def show_candidate(
         # Create the directory if it does not exist
         Path(PATH_FIGURES).mkdir(parents=True, exist_ok=True)
         plt.savefig(Path(PATH_FIGURES, f'fig_{plot_counter}.svg'),format="svg", bbox_inches="tight", transparent=True);
+        
+
+def plot_classification_curves(model, val_loader, device, title="Lungs tumor clf"):
+    """
+    Plot ROC-AUC and Precision-Recall curves for a trained
+    binary PyTorch image classifier.
+
+    Args:
+        model: trained PyTorch model
+        val_loader: DataLoader containing validation images and labels
+        device: torch.device("cuda") or torch.device("cpu")
+        title: title of the figure
+
+    Returns:
+        roc_auc: ROC-AUC score
+        average_precision: Average Precision score
+    """
+    model.eval()
+    all_labels, all_probs = [], []
+
+    with torch.no_grad():
+        for imgs, labels , _, _ in val_loader:
+
+            imgs, labels = imgs.to(device), labels.to(device)
+
+            # Model returns logits: [batch_size, 2]
+            outputs = model(imgs)
+
+            # Convert logits to probabilities
+            probs = torch.softmax(outputs, dim=1)
+
+            # Probability of positive class (class 1)
+            positive_probs = probs[:, 1]
+
+            all_labels.append(labels.to(device))
+            all_probs.append(positive_probs.to(device))
+
+    # Combine all batches
+    y_true = torch.cat(all_labels).numpy()
+    y_score = torch.cat(all_probs).numpy()
+
+    
+    # ROC curve
+    false_positive_rates, true_positive_rates, roc_thresholds = roc_curve(y_true, y_score)
+    roc_auc = roc_auc_score(y_true, y_score)
+
+    
+    # Precision-Recall curve
+    precision, recall, pr_thresholds = precision_recall_curve(y_true, y_score)
+
+    average_precision = average_precision_score(y_true, y_score)
+
+    fig, ax = plt.subplots(1, 2, figsize=(10, 4.5))
+
+    # ROC-AUC
+    ax[0].plot(
+        false_positive_rates,
+        true_positive_rates,
+        label=f"ROC-AUC = {roc_auc:.3f}"
+    )
+
+    ax[0].plot([0, 1], [0, 1], linestyle=":", label="Random classifier")
+
+    ax[0].set_title(f"ROC Curve\n{title}")
+    ax[0].set_xlabel("False Positive Rate")
+    ax[0].set_ylabel("True Positive Rate")
+    ax[0].set_xlim([0, 1])
+    ax[0].set_ylim([0, 1.05])
+    ax[0].legend(loc="lower right")
+    ax[0].grid(alpha=0.3)
+
+    # Precision-Recall
+    ax[1].plot(recall, precision, label=f"AP = {average_precision:.3f}")
+
+    # Baseline = proportion of positive samples
+    positive_rate = y_true.mean()
+
+    ax[1].axhline(
+        positive_rate, linestyle=":", label=f"Random classifier = {positive_rate:.3f}"
+    )
+
+    ax[1].set_title(f"Precision-Recall Curve\n{title}")
+    ax[1].set_xlabel("Recall")
+    ax[1].set_ylabel("Precision")
+    ax[1].set_xlim([0, 1])
+    ax[1].set_ylim([0, 1.05])
+    ax[1].legend(loc="lower left")
+    ax[1].grid(alpha=0.3)
+
+    plt.tight_layout()
+    plt.show()
+
+    print(f"ROC-AUC: {roc_auc:.4f}")
+    print(f"Average Precision: {average_precision:.4f}")
