@@ -86,7 +86,6 @@ def show_candidate(
     label = int(row["class"])
 
     center_xyz = np.array([row["coordX"], row["coordY"], row["coordZ"]], dtype=np.float64)
-
     
     # Load CT 
     ct = dataset._get_ct(series_uid)
@@ -99,7 +98,10 @@ def show_candidate(
     center_c = int(round(center_irc[2]))
     
     # Extract RAW HU patch through Dataset
-    raw_patch, patch_center_irc = ct.get_raw_candidate(center_xyz, dataset.width_irc)
+    raw_patch, patch_center_irc = ct.get_raw_candidate(
+        center_xyz, 
+        dataset.width_irc
+    )
 
     assert np.allclose(center_irc, patch_center_irc)
     
@@ -110,11 +112,10 @@ def show_candidate(
     print(f"Diameter   : {row['diameter_mm']:.3f} mm")
     print(f"XYZ        : {center_xyz}")
     print(f"IRC        : {center_irc}")
-    print(f"CT shape   : {ct.hu_array.shape}")
     print(f"Patch shape: {raw_patch.shape}")
 
     # Check that center is inside CT
-    I, R, C = ct.hu_array.shape
+    I, R, C = tuple(ct.image.GetSize())[::-1]
 
     if not (
         0 <= center_i < I
@@ -122,19 +123,20 @@ def show_candidate(
         and 0 <= center_c < C
     ):
         raise ValueError(
-            f"Candidate center {center_irc} is outside "
-            f"CT dimensions {ct.hu_array.shape}"
-        )
-        
+            f"Candidate center {center_irc} is outside CT dimensions {(I, R, C)}")
+    
+    # Get the three full CT views around the candidate.
+    # Only the required 2-D slices are loaded into NumPy.
+    axial_slice = ct.get_raw_slice(axis=0, index=center_i)
+    coronal_slice = ct.get_raw_slice(axis=1, index=center_r)
+    sagittal_slice = ct.get_raw_slice(axis=2, index=center_c)
+    
     # Plot
     fig, ax = plt.subplots(2,3, figsize=figsize)
 
     # Three full CT views around the candidate 
     # axial. coords (x, y): (C, R)
-    ax[0, 0].imshow(
-        ct.hu_array[center_i], clim=HU_CLIM, cmap=cmap #, origin="upper"
-        
-    )
+    ax[0, 0].imshow(axial_slice, clim=HU_CLIM, cmap=cmap) #, origin="upper"   
 
     ax[0, 0].axvline(center_c, linewidth=1, color='r')
     ax[0, 0].axhline(center_r,  linewidth=1, color='r')
@@ -145,9 +147,7 @@ def show_candidate(
     #ax[0, 0].invert_yaxis()
     
     # CORONAL / ROW. Image shape = (I, C); coords (x, y): (C, I)
-    ax[0, 1].imshow(
-        ct.hu_array[:, center_r, :], clim=HU_CLIM, cmap=cmap, aspect="auto"
-    )
+    ax[0, 1].imshow(coronal_slice, clim=HU_CLIM, cmap=cmap, aspect="auto")
     
     ax[0, 1].axvline(center_c, linewidth=1, color='r') # C - column
     ax[0, 1].axhline(center_i, linewidth=1, color='r') # I - index
@@ -158,10 +158,8 @@ def show_candidate(
     ax[0, 1].invert_yaxis()
     
     # SAGITTAL / COLUMN. Image shape = (I, R); coords (x, y): (R, I)  
-    ax[0, 2].imshow(
-        ct.hu_array[:, :, center_c], 
-        clim=HU_CLIM, cmap=cmap, aspect="auto"
-    )
+    ax[0, 2].imshow(sagittal_slice, clim=HU_CLIM, cmap=cmap, aspect="auto")
+    
     ax[0, 2].axvline(center_r, linewidth=1, color='r') # R
     ax[0, 2].axhline(center_i,  linewidth=1, color='r') # I
     
@@ -252,7 +250,7 @@ def plot_classification_curves(model, val_loader, device, title="Lungs tumor clf
     with torch.no_grad():
         for imgs, labels , _, _ in val_loader:
 
-            imgs, labels = imgs.to(device), labels.to(device)
+            imgs = imgs.to(device)
 
             # Model returns logits: [batch_size, 2]
             outputs = model(imgs)
@@ -263,8 +261,8 @@ def plot_classification_curves(model, val_loader, device, title="Lungs tumor clf
             # Probability of positive class (class 1)
             positive_probs = probs[:, 1]
 
-            all_labels.append(labels.to(device))
-            all_probs.append(positive_probs.to(device))
+            all_labels.append(labels.cpu())
+            all_probs.append(positive_probs.cpu())
 
     # Combine all batches
     y_true = torch.cat(all_labels).numpy()
