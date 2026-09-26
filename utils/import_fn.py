@@ -199,7 +199,6 @@ class CTVolume:
 
         self.series_uid = series_uid
         self.data_dir = Path(data_dir)
-
         
         # Find the corresponding .mhd file
         mhd_files = list(self.data_dir.glob(f"subset*/{series_uid}.mhd"))
@@ -211,8 +210,7 @@ class CTVolume:
 
         if len(mhd_files) > 1:
             raise RuntimeError(
-                f"Multiple .mhd files found for {series_uid}: "
-                f"{mhd_files}"
+                f"Multiple .mhd files found for {series_uid}: {mhd_files}"
             )
 
         self.mhd_path = mhd_files[0]
@@ -221,28 +219,29 @@ class CTVolume:
         self.raw_path = self.mhd_path.with_suffix(".raw")
 
         if not self.raw_path.exists():
-            raise FileNotFoundError(
-                f"Expected .raw file not found: {self.raw_path}"
-            )
+            raise FileNotFoundError(f"Expected .raw file not found: {self.raw_path}")
 
         # Read CT using SimpleITK package
         self.image = sitk.ReadImage(str(self.mhd_path)) 
 
         # SimpleITK returns a NumPy array as: (Z, Y, X) which we call: (I, R, C)
-        self.hu_array = sitk.GetArrayFromImage(
-            self.image).astype(np.float32, copy=False)
-
+        #.astype(np.float32, copy=False) overloads cache
+        # We deliberately do NOT convert the entire CT volume to a NumPy array
+        # here. Only the small candidate patch is converted to NumPy in
+        # get_raw_candidate(). This substantially reduces RAM usage.
         
+        #self.hu_array = sitk.GetArrayFromImage(self.image).astype(np.float32, copy=False)
+
         # Clip HU values
-        np.clip(self.hu_array, -1000.0, 1000.0, out=self.hu_array)
+        #np.clip(self.hu_array, -1000.0, 1000.0, out=self.hu_array)
 
         
         # Spatial metadata
         self.origin_xyz = np.asarray(
-            self.image.GetOrigin(),   dtype=np.float64)
+            self.image.GetOrigin(), dtype=np.float64)
 
         self.spacing_xyz = np.asarray(
-            self.image.GetSpacing(),  dtype=np.float64)
+            self.image.GetSpacing(), dtype=np.float64)
 
         self.direction = np.asarray(
             self.image.GetDirection(), dtype=np.float64).reshape(3, 3)
@@ -276,7 +275,8 @@ class CTVolume:
                 tuple(xyz)), dtype=np.float64)
 
         # NumPy array order is (I,R,C), therefore reverse.
-        # .copy() is important because [::-1] otherwise creates an array with negative strides.
+        # .copy() is important because [::-1] otherwise creates 
+        # an array with negative strides.
         irc = continuous_index_xyz[::-1].copy()
 
         return irc
@@ -309,10 +309,15 @@ class CTVolume:
         center_irc = self.xyz_to_irc(center_xyz)
 
         slice_list = []
+        
+        # SimpleITK image size is expressed in (X, Y, Z) order,
+        # while our NumPy/IRC convention is (I, R, C).
+        image_size_irc = tuple(self.image.GetSize())[::-1]
+        
 
         for axis, center_val in enumerate(center_irc):
 
-            start_ndx = int(round(  center_val - width_irc[axis] / 2 ))
+            start_ndx = int(round(center_val - width_irc[axis] / 2))
 
             end_ndx = start_ndx + width_irc[axis]
 
@@ -321,16 +326,96 @@ class CTVolume:
                 start_ndx = 0
                 end_ndx = width_irc[axis]
 
-            if end_ndx > self.hu_array.shape[axis]:
-                end_ndx = self.hu_array.shape[axis]
-                start_ndx =  self.hu_array.shape[axis] - width_irc[axis]
+            if end_ndx > image_size_irc[axis]:
+                end_ndx = image_size_irc[axis]
+                start_ndx = image_size_irc[axis] - width_irc[axis]
                 
             slice_list.append( slice(start_ndx, end_ndx ) )
 
-        ct_chunk = self.hu_array[tuple(slice_list)]
+        #ct_chunk = self.hu_array[tuple(slice_list)]
+         # Convert NumPy/IRC coordinates to SimpleITK's XYZ order.
+        start_irc = np.array( [s.start for s in slice_list], dtype=np.int64)
 
+        size_irc = np.array([s.stop - s.start for s in slice_list], dtype=np.int64)
+
+        start_xyz = tuple(start_irc[::-1].tolist())
+        size_xyz = tuple(size_irc[::-1].tolist())
+
+        # Extract only the required 3D region from the CT.
+        ct_image = sitk.RegionOfInterest(self.image, size=size_xyz, index=start_xyz)
+
+        # SimpleITK returns a NumPy array as: (Z, Y, X) which we call: (I, R, C)
+        # Convert only the small candidate patch to float32.
+        ct_chunk = sitk.GetArrayFromImage(ct_image).astype(np.float32, copy=False)
+
+        # Clip HU values
+        np.clip(ct_chunk, -1000.0, 1000.0, out=ct_chunk)
+        
         return ct_chunk, center_irc
+    
+    def get_raw_slice(self, axis: int, index: int):
+        """Gets one raw HU slice from the CT volume.
 
+        Args:
+            axis (int): NumPy/IRC axis:
+                0 = I (axial)
+                1 = R (coronal)
+                2 = C (sagittal)
+
+            index (int): Slice index along the selected axis.
+
+        Returns:
+            slice_array (np.ndarray):
+                2D CT slice in the native NumPy coordinate system.
+        """
+
+        # SimpleITK image size is expressed in (X, Y, Z) order,
+        # while our NumPy/IRC convention is (I, R, C).
+        image_size_irc = tuple(self.image.GetSize())[::-1]
+
+        if axis not in (0, 1, 2):
+            raise ValueError(f"axis must be 0, 1, or 2, got {axis}")
+
+        if index < 0 or index >= image_size_irc[axis]:
+            raise IndexError(
+                f"Slice index {index} is outside axis {axis} "
+                f"range [0, {image_size_irc[axis] - 1}]"
+            )
+
+        # Create a region containing one slice along the requested axis.
+        start_irc = [0, 0, 0]
+        size_irc = list(image_size_irc)
+
+        start_irc[axis] = index
+        size_irc[axis] = 1
+
+        # Convert NumPy/IRC coordinates to SimpleITK's XYZ order.
+        start_xyz = tuple(start_irc[::-1])
+        size_xyz = tuple(size_irc[::-1])
+
+        slice_image = sitk.RegionOfInterest(
+            self.image,
+            size=size_xyz,
+            index=start_xyz
+        )
+
+        # SimpleITK returns a NumPy array as: (Z, Y, X) which we call: (I, R, C)
+        slice_array = sitk.GetArrayFromImage(
+            slice_image
+        ).astype(np.float32, copy=False)
+
+        # Clip HU values
+        np.clip(
+            slice_array,
+            -1000.0,
+            1000.0,
+            out=slice_array
+        )
+
+        # Remove the dimension of size 1.
+        slice_array = np.squeeze(slice_array, axis=axis)
+
+        return slice_array
 
 
 import logging
@@ -413,9 +498,15 @@ class LunaDataset(Dataset):
     
     # CT loading
     def _get_ct(self, series_uid):
-
+        
         if self._cached_series_uid != series_uid:
-
+            # Release the previous CT before loading a new one.
+            self._cached_ct = None
+            self._cached_series_uid = None
+            
+            import gc
+            gc.collect()
+        
             self._cached_ct = CTVolume(
                 series_uid=series_uid,
                 data_dir=self.data_dir
@@ -458,15 +549,14 @@ class LunaDataset(Dataset):
 
         # Extract 3-D CT patch
         ct_patch, center_irc = ct.get_raw_candidate(center_xyz, self.width_irc)
-            
+        
         # Normalize HU
-        ct_patch = self._normalize_hu(ct_patch)
+        ct_patch = self._normalize_hu(ct_patch.astype(np.float32, copy=False))
 
-        # Cast NumPy array to Torch
-        candidate_t = torch.from_numpy(ct_patch).to(torch.float32)
+        # Cast NumPy array to Torch and Add channel dimension: (I, R, C) → (1, I, R, C)
+        candidate_t = torch.from_numpy(ct_patch).unsqueeze(0)
+        #.to(torch.float32, copy=False).unsqueeze(0)
 
-        # Add channel dimension: (I, R, C) → (1, I, R, C)
-        candidate_t = candidate_t.unsqueeze(0)
 
         # Classification target
         label_t = torch.tensor(row["class"], dtype=torch.long)
