@@ -229,16 +229,62 @@ def show_candidate(
         plt.savefig(Path(PATH_FIGURES, f'fig_{plot_counter}.svg'),format="svg", bbox_inches="tight", transparent=True);
         
 
-def plot_classification_curves(model, val_loader, device, title="Lungs tumor clf"):
+def display_scores(scores:dict, plot_counter:int=None, PATH_FIGURES:str=None):
+    """display training progress
+
+    Args:
+    ----------
+    scores (dict): 
+        training results
+    plot_counter (int, optional): 
+        Figure number. Defaults to None.
+    PATH_FIGURES (str, optional): 
+        Path to the figures directory. Defaults to None.
+    """    
+
+    epochs = np.arange(1, len(scores['train_loss']) + 1)
+    
+    fig, ax = plt.subplots(1,2, figsize=(11,4))
+    ax[0].plot(epochs, scores['train_loss'], c='b', label=f'Train')
+    ax[0].plot(epochs, scores['val_loss'], c='r', label=f'Valid')
+    ax[0].set_title('Loss')
+    ax[0].legend(['train', 'val'])
+    
+    ax[1].plot(epochs, scores['train_acc'], c='b', label=f'Train')
+    ax[1].plot(epochs, scores['val_acc'], c='r', label=f'Valid')
+    ax[1].set_title('Accuracy')
+    ax[1].legend(['train', 'val'])
+    
+    plt.tight_layout()
+    
+    if plot_counter:
+        # Create the directory if it does not exist
+        Path(PATH_FIGURES).mkdir(parents=True, exist_ok=True)
+        plt.savefig(Path(PATH_FIGURES, f'fig_{plot_counter}.svg'),format="svg", bbox_inches="tight", transparent=True);
+
+def plot_classification_curves(
+    model, val_loader, device, 
+    title="Lungs tumor clf", 
+    plot_counter:int=None, 
+    PATH_FIGURES:str=None):
     """
     Plot ROC-AUC and Precision-Recall curves for a trained
     binary PyTorch image classifier.
 
     Args:
-        model: trained PyTorch model
-        val_loader: DataLoader containing validation images and labels
-        device: torch.device("cuda") or torch.device("cpu")
-        title: title of the figure
+    ----------
+    model: 
+        trained PyTorch model
+    val_loader: 
+        DataLoader containing validation images and labels
+    device: 
+        torch.device("cuda") or torch.device("cpu")
+    title (str): 
+        title of the figure
+    plot_counter (int, optional): 
+        Figure number. Defaults to None.
+    PATH_FIGURES (str, optional): 
+        Path to the figures directory. Defaults to None.
 
     Returns:
         roc_auc: ROC-AUC score
@@ -317,7 +363,12 @@ def plot_classification_curves(model, val_loader, device, title="Lungs tumor clf
     ax[1].grid(alpha=0.3)
 
     plt.tight_layout()
-    plt.show()
+    #plt.show()
 
     print(f"ROC-AUC: {roc_auc:.4f}")
     print(f"Average Precision: {average_precision:.4f}")
+    
+    if plot_counter:
+        # Create the directory if it does not exist
+        Path(PATH_FIGURES).mkdir(parents=True, exist_ok=True)
+        plt.savefig(Path(PATH_FIGURES, f'fig_{plot_counter}.svg'),format="svg", bbox_inches="tight", transparent=True);
