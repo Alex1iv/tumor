@@ -264,7 +264,7 @@ def display_scores(scores:dict, plot_counter:int=None, PATH_FIGURES:str=None):
 
 def plot_classification_curves(
     model, val_loader, device, 
-    title="Lungs tumor clf", 
+    title:str=None, 
     plot_counter:int=None, 
     PATH_FIGURES:str=None):
     """
@@ -279,8 +279,8 @@ def plot_classification_curves(
         DataLoader containing validation images and labels
     device: 
         torch.device("cuda") or torch.device("cpu")
-    title (str): 
-        title of the figure
+    title (str, optional): 
+        title of the figure. Defaults to None.
     plot_counter (int, optional): 
         Figure number. Defaults to None.
     PATH_FIGURES (str, optional): 
@@ -336,7 +336,7 @@ def plot_classification_curves(
 
     ax[0].plot([0, 1], [0, 1], linestyle=":", label="Random classifier")
 
-    ax[0].set_title(f"ROC Curve\n{title}")
+    ax[0].set_title(f"ROC Curve\n{title}") if title else ax[0].set_title(f"ROC Curve")
     ax[0].set_xlabel("False Positive Rate")
     ax[0].set_ylabel("True Positive Rate")
     ax[0].set_xlim([0, 1])
@@ -350,11 +350,9 @@ def plot_classification_curves(
     # Baseline = proportion of positive samples
     positive_rate = y_true.mean()
 
-    ax[1].axhline(
-        positive_rate, linestyle=":", label=f"Random classifier = {positive_rate:.3f}"
-    )
+    ax[1].axhline(positive_rate, linestyle=":", label=f"Random classifier = {positive_rate:.3f}")
 
-    ax[1].set_title(f"Precision-Recall Curve\n{title}")
+    ax[1].set_title(f"Precision-Recall Curve\n{title}") if title else ax[1].set_title(f"Precision-Recall Curve")
     ax[1].set_xlabel("Recall")
     ax[1].set_ylabel("Precision")
     ax[1].set_xlim([0, 1])
