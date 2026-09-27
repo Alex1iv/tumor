@@ -2,6 +2,16 @@
 
 The project is devoted to the lungs tumor detection on computer tomography images using custom deep learning algorithm.
 
+## Content
+
+* [Introduction](README.md#Introduction)  
+* [Data preparation](README.md#Data-preparation)  
+* [Methods](README.md#Methods)
+* [Results](README.md#Results)                    
+
+---
+## Introduction
+
 Recent advancemet in machine learning machine learning made a substantial progress in various domains of medicine. In particular, automated scanning of medical images  done with new algorithms and image processing techniques has inceased the precision of lung tumor detection. As a result, patients can be provided with more accurate diagnoses on earlier stages, and this decreases in general the mortality rate from that disease.
 
 In the last decade, a large online-competition devoted to the lung tumor, [LUng Nodule Analysis (LUNA) 2016](https://luna16.grand-challenge.org/Data/), opened a new perspective for AI-assisted medical research. Desite the fact the event was finished, its data is still publicly available and worth to analyze due to several reasons. On first, the original dataset contains 888 raw Computer Tomography (CT) images whose total size exceeds 100 Gigabytes. Such a large amount of raw data gives a great opportunity for medical data analysts. On second, authors of the competition provided participants with two additional datasets: first contains over 700,000 nodule candidates, and the second consist of about 1550 verified tumors. These circumstances made this data a valuable asset.
@@ -15,14 +25,32 @@ A huge volume of raw data forced the competition organizers to split CT files by
 Reading of a CT image outputs body slices shown on the Fig.1. Every image displays an annotated lung tumor nodules on three projection: axial, coronal sagital.
 
 <p align="center">  <img src="figures/fig_1.svg" width="900" > </p>
-<p align="center" style="font-size:14px">Fig. 1 - CT slice samples</p>
+<p align="center" style="font-size:14px"><i>Fig. 1 - CT slice samples</i></p>
 
 ## Methods
 
+In this study, our goal is to construct a precise and robust tumor detecting algorithm. To reach this, we carried out several experiments, selecting different data preprocessing pipelines and models to identify better strategy for our binary classification problem.
+
+All models were benchmarked by several metrics
 ## Results
 
+### 1. Luna model
+
+One of the main goals of the first experiment was to constuct working data processing pipeline and test it. So we decided to compose a dataset from all available tumor-class candidates and nodules (negative class) in a ratio of approximately 1:2 respectively. As a result, the total number of studying instances reached about 1550.
+
 <p align="center"> <img src="figures/fig_2.svg" width="800"> </p>
-<p align="center">Fig. 2 - Training progress</p>
+<p align="center" style="font-size:14px"><i>Fig. 2 - Training progress</i></p>
+
+The LUNA model showed satisfactory results, though its tumor-detecting power is low as shown in the Table 1. The Recall score is a tiny  
+
+              precision    recall  f1-score   support
+
+  Non-nodule     0.7434    1.0000    0.8528        84
+      Nodule     1.0000    0.1944    0.3256        36
+
+    accuracy                         0.7583       120
+   macro avg     0.8717    0.5972    0.5892       120
+weighted avg     0.8204    0.7583    0.6946       120 
 
 <p align="center"> <img src="figures/fig_3.svg" width="800"> </p>
-<p align="center">Fig. 3 - Classificaiton metrics</p>
+<p align="center" style="font-size:14px"><i>Fig. 3 - Classificaiton metrics</i></p>
