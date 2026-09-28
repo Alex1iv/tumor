@@ -32,28 +32,41 @@ Reading of a CT image outputs body slices shown on the Fig.1. Every image displa
 One of the main hurdle, which slows every stage of this project, is a huge amount of raw data. This circumstance forces us to apply various techniques to increase the processing speed. On first, the total size of CT images exceeds 100 Gigabytes, and it requires a substantial disk space. Though tomographies were provided in archived subsets, they need to be unziped because the CT-reading package, *SimpleITK*, cannot access archives. To our knowledge, there are no cloud services that could process such a large data chunks for free. So, our home computers was a single available option. On second, large file size makes impossible their import to the RAM for caching. Instead, reading is carried out sequentially, e.g. file by file. On third, model training and validation may take dosens of minutes if performed on a CPU of a modern computer. To increase the computation speed, we used a GPU unit (CUDA technology) to train models.
 
 
-In this study, our goal is to construct a precise and robust tumor detecting algorithm. To reach this, we carried out several experiments, comparing different data preprocessing pipelines and models to identify better strategy for our binary classification problem.
+In this study, our goal is to construct a precise and robust tumor detecting algorithm. To reach this objective, we carried out several experiments that allowed us to compare different data preprocessing pipelines and models, and to identify better strategy for our binary classification problem.
 
-All models were benchmarked by several metrics such as Accuracy, Recall, and F1-score.
+All models were trained within 25 epochs. Then, they were benchmarked by several metrics such as Accuracy, Recall, and F1-score.  
+
 ## Results
 
 ### 1. Luna model
 
-One of the main goals of the first experiment was to constuct working data processing pipeline and test the model. So we decided to compose a dataset from all available tumor-class candidates and nodules (negative class) in a ratio of about 1:2 respectively. As a result, the total number of studying instances reached about 4650 instances. Such l
+One of the main goals of the first experiment was to constuct working data processing pipeline and test the model. So we decided to compose our dataset using all available tumor-class candidates and nodules (negative class) in a ratio of about 1:2 respectively. As a result, the total number of studying instances reached about 4650. Such number of images is considerably low to train a robust model.
 
-<p align="center"> <img src="figures/fig_2.svg" width="800"> </p>
-<p align="center" style="font-size:14px"><i>Fig. 2 - Training progress</i></p>
+The architecture of machine learning model used on this stage is relatively simple and straightforward. It consist of several fully connected convolutional blocks as shaown on the Figure 2.
 
-The LUNA model showed satisfactory results, though its tumor-detecting power is low as shown in the Table 1. The Recall score is a tiny  
+<p align="center"> <img src="figures/fig_2_lunamodel_scheme.svg" width="800"> </p>
+<p align="center" style="font-size:14px"><i>Fig. 2 - Architecture of the Lunamodel</i></p>
 
-              precision    recall  f1-score   support
+As it was expected, the classificaton power of Lunamodel is relatively poor. The Recall metiric value, for example, reaches tiny 0.194 as displayed on the Table 1. That means the model identifies only 20% of tumors correctly.
 
-  Non-nodule     0.7434    1.0000    0.8528        84
-      Nodule     1.0000    0.1944    0.3256        36
+<p align="center">
 
-    accuracy                         0.7583       120
-   macro avg     0.8717    0.5972    0.5892       120
-weighted avg     0.8204    0.7583    0.6946       120 
+|              | precision | recall | f1-score | support |
+| ------------ | --------- | ------ | -------- | ------- |
+| Non-nodule   | 0.7434    | 1.0000 | 0.8528   | 84      |
+| Nodule       | 1.0000    | 0.1944 | 0.3256   | 36      |
+| accuracy     |           |        | 0.7583   | 120     |
+| macro avg    | 0.8717    | 0.5972 | 0.5892   | 120     |
+| weighted avg | 0.8204    | 0.7583 | 0.6946   | 120     |
+       
+</p>
+<p align="center" style="font-size:14px"><i>Table 1 - Lunamodel classification report</i></p>
+
+The LUNA model showed relatively poor results. Its tumor-detecting power is low as shown in the Table 1. The Recall score is a tiny  
 
 <p align="center"> <img src="figures/fig_3.svg" width="800"> </p>
-<p align="center" style="font-size:14px"><i>Fig. 3 - Classificaiton metrics</i></p>
+<p align="center" style="font-size:14px"><i>Fig. 3 - Training progress</i></p>
+
+
+<p align="center"> <img src="figures/fig_4.svg" width="800"> </p>
+<p align="center" style="font-size:14px"><i>Fig. 4 - Classificaiton metrics</i></p>
