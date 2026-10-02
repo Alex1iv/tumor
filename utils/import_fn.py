@@ -348,9 +348,9 @@ class CTVolume:
         # Convert only the small candidate patch to float32.
         ct_chunk = sitk.GetArrayFromImage(ct_image).astype(np.float32, copy=False)
 
-        # Clip HU values
+        # Clip HU values to the range used by the model
         np.clip(ct_chunk, -1000.0, 1000.0, out=ct_chunk)
-        
+       
         return ct_chunk, center_irc
     
     def get_raw_slice(self, axis: int, index: int):
@@ -400,17 +400,10 @@ class CTVolume:
         )
 
         # SimpleITK returns a NumPy array as: (Z, Y, X) which we call: (I, R, C)
-        slice_array = sitk.GetArrayFromImage(
-            slice_image
-        ).astype(np.float32, copy=False)
+        slice_array = sitk.GetArrayFromImage(slice_image).astype(np.float32, copy=False)
 
         # Clip HU values
-        np.clip(
-            slice_array,
-            -1000.0,
-            1000.0,
-            out=slice_array
-        )
+        np.clip(slice_array, -1000.0, 1000.0, out=slice_array)
 
         # Remove the dimension of size 1.
         slice_array = np.squeeze(slice_array, axis=axis)
@@ -433,7 +426,7 @@ class LunaDataset(Dataset):
         data_dir: str = "../data/raw",
         width_irc=(32, 48, 48),
         series_uid=None,
-        normalize=True
+        augmentation=None
     ):
         """
         Parameters
@@ -449,17 +442,17 @@ class LunaDataset(Dataset):
 
         series_uid : str or None
             If specified, use only candidates from this CT series.
-
-        normalize : bool
-            If True, map HU values from [-1000, 1000]
-            to approximately [-1, 1].
+           
+        augmentation=None
+            Apply a 3-D transformation in HU space to a patch before normalization. 
+            Default to None
         """
 
         super().__init__()
 
         self.data_dir = Path(data_dir)
         self.width_irc = tuple(width_irc)
-        self.normalize = normalize
+        self.augmentation = augmentation
 
         # Validate DataFrame
         required_columns = {"series_uid", "coordX", "coordY", "coordZ", "class", "diameter_mm" }
@@ -468,7 +461,6 @@ class LunaDataset(Dataset):
 
         if missing:
             raise ValueError(f"candidates_df is missing columns: {missing}")
-
 
         # Keep only required information
         self.candidates_df = candidates_df[["series_uid", "coordX", "coordY", "coordZ", "class", "diameter_mm"]].copy()
@@ -517,21 +509,12 @@ class LunaDataset(Dataset):
         return self._cached_ct
 
     
-    # HU normalization
-    def _normalize_hu(self, ct_chunk):
+    # # HU normalization
+    # @staticmethod
+    # def _normalize_hu(ct_chunk):
+    #     """Normalize HU values from [-1000, 1000] to approx. [-1, 1]."""
 
-        if not self.normalize:
-            return ct_chunk
-
-        # HU was clipped to [-1000, 1000].
-        #
-        # Map:
-        #
-        # -1000 -> -1
-        #     0 ->  0
-        #  1000 -> +1
-        #
-        return ct_chunk / 1000.0
+    #     return ct_chunk / 1000.0
 
     
     # Get one sample
@@ -547,17 +530,22 @@ class LunaDataset(Dataset):
         # Load CT volume
         ct = self._get_ct(series_uid)
 
-        # Extract 3-D CT patch
+        # Extract 3-D CT patch. CTVolume already clips HU to [-1000, 1000]
         ct_patch, center_irc = ct.get_raw_candidate(center_xyz, self.width_irc)
         
-        # Normalize HU
-        ct_patch = self._normalize_hu(ct_patch.astype(np.float32, copy=False))
-
         # Cast NumPy array to Torch and Add channel dimension: (I, R, C) → (1, I, R, C)
         candidate_t = torch.from_numpy(ct_patch).unsqueeze(0)
-        #.to(torch.float32, copy=False).unsqueeze(0)
+        
+        # Augmentation. At this point values are still in HU.
+        # (1, I, R, C) to (1, 1, I, R, C) and augmentation to  (1, I, R, C)
 
-
+        if self.augmentation is not None:
+            candidate_t = self.augmentation(candidate_t.unsqueeze(0))[0]
+        
+        # Normalize HU
+        #ct_patch = self._normalize_hu(candidate_t)
+        candidate_t = candidate_t / 1000.0
+        
         # Classification target
         label_t = torch.tensor(row["class"], dtype=torch.long)
 
