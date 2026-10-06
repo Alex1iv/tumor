@@ -42,17 +42,17 @@ Third, model training and validation can take tens of minutes when performed on 
 
 The main goal of this study is to develop an accurate and robust lung tumor detection algorithm. To achieve this objective, several experiments were conducted to compare different data-preprocessing approaches and model configurations and to investigate their suitability for the binary classification task.
 
-All models were trained for 25 epochs. *Cross-entropy loss* was used as the optimization criterion for the two-class classification problem:
+To ensure results compability of across multiple experiments, we used following method. All models were trained for 25 epochs only, and the learning rate value was set at 0.001. The *Cross-entropy loss* was used as the optimization criterion for the two-class classification problem:
 
 $$Loss = -[y \cdot \log(\hat{y}) + (1-y) \cdot \log(1- \hat{y}) ]$$
 
-To evaluate model performance, several classification metrics were used, including accuracy, precision, recall, and F1-score.
+In addition, we evaluated model performance using several classification metrics, including accuracy, precision, recall, and F1-score.
 
 ## Results
 
-### 1. Luna model
+### Experiment 1.
 
-One of the main goals of the first experiment was to construct a functional data-processing pipeline and establish a baseline model. The dataset was therefore composed using all available tumor-class candidates and approximately twice as many negative-class candidates, resulting in a negative-to-positive ratio of approximately 2:1. The resulting dataset contained approximately 4,650 candidate samples.
+One of the main goals of the first experiment was to construct a functional data-processing pipeline and establish a baseline model. To implement this idea, two steps have been made. On first, the number of CT was limited to apporoximately 250 images. Such a reduced number of CTs ensured that the training time for our model was about 20 minutes, and we were able to catch possible errors faster. On second, our dataset was composed using all available tumor-class candidates and approximately twice as many negative-class candidates, resulting in a negative-to-positive ratio of approximately 2:1. The resulting dataset contained approximately 4,650 candidate samples.
 
 Although this dataset is sufficient for testing the processing pipeline and establishing a baseline, its size is relatively small for training a robust deep learning model.
 
@@ -63,29 +63,35 @@ The machine learning architecture used in this experiment is relatively simple. 
 
 As expected, the baseline LUNA model demonstrated limited performance in detecting nodules. In particular, the recall for the Nodule class was only 0.194, as shown in Table 1. This means that the model correctly identified approximately 19% of the actual nodules in the evaluation set, while the remaining nodules were classified as non-nodules. Missing a positive nodule, however, is quite important here.
 
-<p align="center">
+<div align="center">
 
-|              | precision | recall | f1-score | support |
-| ------------ | --------- | ------ | -------- | ------- |
-| Non-nodule   | 0.7434    | 1.0000 | 0.8528   | 84      |
-| Nodule       | 1.0000    | 0.1944 | 0.3256   | 36      |
-| accuracy     |           |        | 0.7583   | 120     |
-| macro avg    | 0.8717    | 0.5972 | 0.5892   | 120     |
-| weighted avg | 0.8204    | 0.7583 | 0.6946   | 120     |
-       
-</p>
-<p align="center" style="font-size:14px"><i>Table 1 - Lunamodel classification report</i></p>
+| Metric             | Experiment 1 | Experiment 2 | Experiment 3 |
+| ------------------ | -----------: | -----------: | -----------: |
+| Test samples       |          120 |          262 |          262 |
+| Non-nodule samples |           84 |          131 |          131 |
+| Nodule samples     |           36 |          131 |          131 |
+| **Accuracy**       |   **0.7583** |       0.7252 |       0.7252 |
+| Nodule precision   |   **1.0000** |       0.7611 |       0.7153 |
+| **Nodule recall**  |       0.1944 |       0.6565 |   **0.7481** |
+| Nodule F1          |       0.3256 |       0.7049 |   **0.7313** |
+| Macro F1           |       0.5892 |       0.7239 |   **0.7250** |
+| Weighted F1        |       0.6946 |       0.7239 |   **0.7250** |
 
-The F1-score for the Nodule class was 0.326, reflecting the imbalance between its perfect precision (1.000) and very low recall (0.194). Thus, the first experiment demonstrates that the baseline architecture and preprocessing pipeline require further improvement before the model can be considered suitable for reliable lung nodule detection. 
+</div>
+<p align="center" style="font-size:14px"><i>Table 1 - classification report of all experiments</i></p>
 
-<p align="center"> <img src="figures/fig_3.svg" width="800"> </p>
-<p align="center" style="font-size:14px"><i>Fig. 3 - Training progress</i></p>
-
-
-The ROC and Precision–Recall curves provide a more comprehensive evaluation of the model across different classification thresholds. The ROC-AUC was approximately 0.75, indicating a moderate ability to distinguish nodules from non-nodules. However, achieving high sensitivity requires accepting a substantial number of false positives. For example, a true-positive rate of approximately 0.72 corresponds to a false-positive rate of about 0.33, while increasing the true-positive rate to approximately 0.92 raises the false-positive rate to about 0.82.
-
-The Precision–Recall curve demonstrates a similar trade-off. At a recall close to 1.0, precision is only approximately 0.30, whereas precision above 0.8 is achieved only at substantially lower recall. Overall, the results indicate that the model has learned a meaningful distinction between the two classes, but its current predictive performance is limited by the trade-off between sensitivity and false-positive detections. Further improvements to the dataset, preprocessing, augmentation, and model architecture are therefore required.
+The F1-score for the Nodule class was 0.3256, reflecting the imbalance between its perfect precision (1.000) and very low recall (0.1944). Thus, the first experiment demonstrates that the baseline architecture and preprocessing pipeline require further improvement before the model can be considered suitable for reliable lung nodule detection. 
 
 
-<p align="center"> <img src="figures/fig_4.svg" width="800"> </p>
-<p align="center" style="font-size:14px"><i>Fig. 4 - Classificaiton metrics</i></p>
+### Experiment 2. Luna model with balanced class ratio 
+
+In this experiment, several techniques were applied to imprpove the model quality. Having test the trainig pipeline, we trained our model on all available images. As a result, its recall score has almost trippled, and grew from 0.1944 to 0.6565 as shown in the Table 1.
+
+### Experiment 3. Luna model 2 with image augmentation
+
+In this experiment, we tried to improve accuracy of our model even further using an improved layer composition, and image augmentation. To increase the the model's generalizing capability, we put a BatchNormalization layer after every Convolutional layer. The total number of Convolutional3d blocks was reduced from for to three as displayed on the Fig. 3.
+
+<p align="center"> <img src="figures/fig_5_lunamodel2_scheme.svg" width="800"> </p>
+<p align="center" style="font-size:14px"><i>Fig. 3 - Architecture of the Lunamodel2</i></p>
+
+ Secondly, we also augmented images using various techniques.  
