@@ -94,4 +94,15 @@ In this experiment, we tried to improve accuracy of our model even further using
 <p align="center"> <img src="figures/fig_5_lunamodel2_scheme.svg" width="800"> </p>
 <p align="center" style="font-size:14px"><i>Fig. 3 - Architecture of the Lunamodel2</i></p>
 
- Secondly, we also augmented images using various techniques.  
+#### augmentation
+
+Secondly, we also augmented images using various techniques. 
+
+#### Model comparison
+
+<p align="center"> <img src="figures/fig_6_acc_loss.svg" width="800"> </p>
+<p align="center" style="font-size:14px"><i>Fig. 4 - Model comparison by loss and accuracy</i></p>
+
+
+<p align="center"> <img src="figures/fig_7_roc_auc.svg" width="800"> </p>
+<p align="center" style="font-size:14px"><i>Fig. 5 - Model comparison by ROC_AUC</i></p>
