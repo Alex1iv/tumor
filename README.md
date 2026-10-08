@@ -16,7 +16,7 @@ Recent advances in machine learning have led to substantial progress in various 
 
 In the last decade, the [LUng Nodule Analysis (LUNA) 2016](https://luna16.grand-challenge.org/Data/) competition provided a valuable benchmark for research in automated lung nodule detection. Although the competition has ended, its dataset remains publicly available and provides a valuable resource for further research for several reasons.
 
-First, the original dataset contains 888 raw CT scans. This large collection of medical images provides researchers with an opportunity to investigate various approaches to automated lung nodule detection. Second, the competition organizers provided two additional datasets: one containing more than 700,000 nodule candidates (e.g. negative class) and another containing approximately 1,550 manually annotated nodules (e.g. positive class). These characteristics make the LUNA16 dataset a valuable resource for developing and evaluating machine learning methods for lung nodule detection.
+First, the original dataset contains 888 raw CT scans. This large collection of medical images provides researchers with an opportunity to investigate various approaches to automated lung nodule detection. Second, the competition organizers provided two additional datasets: one containing more than $700,000$ nodule candidates (e.g. negative class) and another containing approximately $1,550$ manually annotated nodules (e.g. positive class). These characteristics make the LUNA16 dataset a valuable resource for developing and evaluating machine learning methods for lung nodule detection.
 
 
 ## Data preparation 
@@ -34,7 +34,7 @@ Reading a CT scan produces a three-dimensional volume consisting of multiple bod
 
 One of the main challenges throughout this project is the large volume of raw data, which affects virtually every stage of the processing pipeline. Therefore, several techniques were employed to improve processing efficiency.
 
-First, the total size of the CT dataset exceeds 100 GB, requiring substantial disk space. Although the CT scans were provided in archived subsets, they have to be extracted because *SimpleITK*, a CT-reading library, cannot directly process the images while they remain inside the archives. Due to the large size of the dataset and the limitations of available computational resources, the experiments were performed on local computers.
+First, the total size of the CT dataset exceeds $100$ GB, requiring substantial disk space. Although the CT scans were provided in archived subsets, they have to be extracted because *SimpleITK*, a CT-reading library, cannot directly process the images while they remain inside the archives. Due to the large size of the dataset and the limitations of available computational resources, the experiments were performed on local computers.
 
 Second, the large size of individual CT volumes makes it impractical to load the entire dataset into RAM for persistent caching. Instead, CT scans are loaded sequentially as needed during data processing.
 
@@ -42,7 +42,7 @@ Third, model training and validation can take tens of minutes when performed on 
 
 The main goal of this study is to develop an accurate and robust lung tumor detection algorithm. To achieve this objective, several experiments were conducted to compare different data-preprocessing approaches and model configurations and to investigate their suitability for the binary classification task.
 
-To ensure results compability of across multiple experiments, we used following method. All models were trained for 25 epochs only, and the learning rate value was set at 0.001. The *Cross-entropy loss* was used as the optimization criterion for the two-class classification problem:
+To ensure results compability of across multiple experiments, we used following method. All models were trained for $25$ epochs only, and the learning rate value was set at $0.001$. The *Cross-entropy loss* was used as the optimization criterion for the two-class classification problem:
 
 $$Loss = -[y \cdot \log(\hat{y}) + (1-y) \cdot \log(1- \hat{y}) ]$$
 
@@ -52,7 +52,7 @@ In addition, we evaluated model performance using several classification metrics
 
 ### Experiment 1.
 
-One of the main goals of the first experiment was to construct a functional data-processing pipeline and establish a baseline model. To implement this idea, two steps have been made. On first, the number of CT was limited to apporoximately 250 images. Such a reduced number of CTs ensured that the training time for our model was about 20 minutes, and we were able to catch possible errors faster. On second, our dataset was composed using all available tumor-class candidates and approximately twice as many negative-class candidates, resulting in a negative-to-positive ratio of approximately 2:1. The resulting dataset contained approximately 4,650 candidate samples.
+One of the main goals of the first experiment was to construct a functional data-processing pipeline and establish a baseline model. To implement this idea, two steps have been made. On first, the number of CT was limited to apporoximately $250$ images. Such a reduced number of CTs ensured that the training time for our model was about $20$ minutes, and we were able to catch possible errors faster. On second, our dataset was composed using all available tumor-class candidates and approximately twice as many negative-class candidates, resulting in a negative-to-positive ratio of approximately $2:1$. The resulting dataset contained approximately $4,650$ candidate samples.
 
 Although this dataset is sufficient for testing the processing pipeline and establishing a baseline, its size is relatively small for training a robust deep learning model.
 
@@ -61,7 +61,7 @@ The machine learning architecture used in this experiment is relatively simple. 
 <p align="center"> <img src="figures/fig_2_lunamodel_scheme.svg" width="800"> </p>
 <p align="center" style="font-size:14px"><i>Fig. 2 - Architecture of the Lunamodel</i></p>
 
-As expected, the baseline LUNA model demonstrated limited performance in detecting nodules. In particular, the recall for the Nodule class was only 0.194, as shown in Table 1. This means that the model correctly identified approximately 19% of the actual nodules in the evaluation set, while the remaining nodules were classified as non-nodules. Missing a positive nodule, however, is quite important here.
+As expected, the baseline LUNA model demonstrated limited performance in detecting nodules. In particular, the recall for the Nodule class was only $0.194$, as shown in Table 1. This means that the model correctly identified approximately $19 \%$ of the actual nodules in the evaluation set, while the remaining nodules were classified as non-nodules. Missing a positive nodule, however, is quite important here.
 
 <div align="center">
 
@@ -80,23 +80,29 @@ As expected, the baseline LUNA model demonstrated limited performance in detecti
 </div>
 <p align="center" style="font-size:14px"><i>Table 1 - classification report of all experiments</i></p>
 
-The F1-score for the Nodule class was 0.3256, reflecting the imbalance between its perfect precision (1.000) and very low recall (0.1944). Thus, the first experiment demonstrates that the baseline architecture and preprocessing pipeline require further improvement before the model can be considered suitable for reliable lung nodule detection. 
+The F1-score for the Nodule class was $0.3256$, reflecting the imbalance between its perfect precision such as $1.000$ and very low recall ($0.1944$). Thus, the first experiment demonstrates that the baseline architecture and preprocessing pipeline require further improvement before the model can be considered suitable for reliable lung nodule detection. 
 
 
 ### Experiment 2. Luna model with balanced class ratio 
 
-In this experiment, several techniques were applied to imprpove the model quality. Having test the trainig pipeline, we trained our model on all available images. As a result, its recall score has almost trippled, and grew from 0.1944 to 0.6565 as shown in the Table 1.
+In this experiment, several techniques were applied to imprpove the model quality. Having test the trainig pipeline, we trained our model on all available images. As a result, its recall score has almost trippled, and grew from $0.1944$ to $0.6565$ as shown in the Table 1.
 
 ### Experiment 3. Luna model 2 with image augmentation
 
-In this experiment, we tried to improve accuracy of our model even further using an improved layer composition, and image augmentation. To increase the the model's generalizing capability, we put a BatchNormalization layer after every Convolutional layer. The total number of Convolutional3d blocks was reduced from for to three as displayed on the Fig. 3.
+In this experiment, we tried to improve accuracy of our model even further using an improved layer composition. To increase the the model's generalizing capability, we put a BatchNormalization layer after every Convolutional layer. The total number of Convolutional3d blocks was reduced from for to three as displayed on the Fig. 3.
 
 <p align="center"> <img src="figures/fig_5_lunamodel2_scheme.svg" width="800"> </p>
 <p align="center" style="font-size:14px"><i>Fig. 3 - Architecture of the Lunamodel2</i></p>
 
-#### augmentation
+#### Experiment 4. Luna model 2 with image augmentation
 
-Secondly, we also augmented images using various techniques. 
+To enchance the second Lunamodel's Recall metric, we augmented images using various techniques. For each input CT patch, the algorithm constructs a random 3D affine transformation and generates a corresponding 3D sampling grid. The transformation includes several random spatial operations: 
+* spatial *reflections* along the I, R, and C axes; 
+* *translations* of up to $\pm 0.05$ in normalized grid coordinates; 
+* *scaling* of each spatial dimension by up to $\pm 5 \%$; 
+* *rotation* in the R–C plane by a random angle between $−15 \degree$° and $−15$°. 
+
+The transformed CT patch is obtained using trilinear interpolation. Subsequently, Gaussian noise with a standard deviation of 10 [Hounsfield Units (HU)](https://en.wikipedia.org/wiki/Hounsfield_scale) is added to the CT intensities, and the resulting values are clipped to the range $[−1000, 1000]$ HU.
 
 #### Model comparison
 
