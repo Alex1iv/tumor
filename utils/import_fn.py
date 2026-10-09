@@ -539,7 +539,7 @@ class LunaDataset(Dataset):
         # Augmentation. At this point values are still in HU.
         # (1, I, R, C) to (1, 1, I, R, C) and augmentation to  (1, I, R, C)
 
-        if self.augmentation is not None:
+        if self.augmentation is not None and row["class"] == 1:
             candidate_t = self.augmentation(candidate_t.unsqueeze(0))[0]
         
         # Normalize HU
