@@ -288,11 +288,11 @@ def evaluate_model(model, test_loader, loss_fn, device):
     y_prob = torch.cat(all_probabilities).numpy()
 
     return {
-        "loss": mean_loss,
-        "accuracy": accuracy,
-        "y_true": y_true,
-        "y_pred": y_pred,
-        "y_prob": y_prob,
+        "loss": np.array(mean_loss),
+        "accuracy": np.array(accuracy),
+        "y_true": np.array(y_true),
+        "y_pred": np.array(y_pred),
+        "y_prob": np.array(y_prob),
     }
 
 class Augmentation3D(nn.Module):
@@ -315,7 +315,7 @@ class Augmentation3D(nn.Module):
     def forward(self, input_g):
         """
         Apply random spatial transformations and Gaussian noise to a CT patch. 
-     
+        I - index; R- row; C - column
         Expected input (in HU):
             input_g : (N, C, I, R, C)
 
@@ -377,12 +377,12 @@ class Augmentation3D(nn.Module):
                 random_float = torch.rand((), device=device) * 2 - 1
                 transform_t[i, 3] =  offset_float * random_float
 
-            # Random scaling.
-            if self.scale is not None:
-                scale_float = float(self.scale)
-                for i in range(3):
-                    random_float = torch.rand((), device=device) * 2 - 1
-                    transform_t[i, i] *= 1.0 + scale_float * random_float
+        # Random scaling.
+        if self.scale is not None:
+            scale_float = float(self.scale)
+            for i in range(3):
+                random_float = torch.rand((), device=device) * 2 - 1
+                transform_t[i, i] *= 1.0 + scale_float * random_float
                 
 
         # Random rotation in R-C plane around the I axis.
