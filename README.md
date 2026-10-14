@@ -50,7 +50,7 @@ In addition, we evaluated model performance using several classification metrics
 
 ### Experiment 1.
 
-One of the main goals of the first experiment was to construct a functional data-processing pipeline and establish a baseline model. To implement this idea, two steps have been made. On first, the number of CT was limited to sligtly fewer than $180$ images. Such a reduced number of CTs ensured that the training time for our model was about $20$ minutes, and we were able to catch possible errors faster. On second, our dataset was composed using all available tumor-class candidates and approximately twice as many negative-class candidates, resulting in a negative-to-positive ratio of approximately $2:1$. The resulting dataset contained approximately $4,650$ candidate samples.
+One of the main goals of the first experiment was to construct a functional data-processing pipeline and establish a baseline model. To implement this idea, two steps have been made. On first, the number of CT was limited to sligtly fewer than $180$ images, which is about 30% of the total CT scans. Such a reduced number of CTs ensured that the training time for our model was about $20$ minutes, and we were able to catch possible errors faster. On second, our dataset was composed using all available tumor-class candidates and approximately twice as many negative-class candidates, resulting in a negative-to-positive ratio of approximately $2:1$. The resulting dataset contained approximately $4,650$ candidate samples.
 
 Although this dataset is sufficient for testing the processing pipeline and establishing a baseline, its size is relatively small for training a robust deep learning model.
 
@@ -103,6 +103,8 @@ To enchance the second Lunamodel's Recall metric, we augmented images using vari
 The transformed CT patch is obtained using trilinear interpolation. Subsequently, Gaussian noise with a standard deviation of 10 [Hounsfield Units (HU)](https://en.wikipedia.org/wiki/Hounsfield_scale) is added to the CT intensities, and the resulting values are clipped to the range $[−1000, 1000]$ HU.
 
 #### Model comparison
+
+Comparing the models we obtained during our four experiments by loss and accuracy, it can be found that the model 2 has more potential then the model 1. It metrics exibit a clear decrease without reaching a plateau as shown on the *Fig. 4*. This means, we may obtain more precise model if it would extend the number of epochs.
 
 <p align="center"> <img src="figures/fig_6_acc_loss.svg" width="800"> </p>
 <p align="center" style="font-size:14px"><i>Fig. 4 - Model comparison by loss and accuracy</i></p>
